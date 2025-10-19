@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mộc Cầm - Đàn Tranh Ảo MediaPipe</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #7e22ce 50%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header p {
+            color: #d1d5db;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-group label {
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 150px;
+        }
+
+        .control-group select {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .control-group select:hover {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .control-group select:focus {
+            border-color: #a78bfa;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group select option {
+            background: #1e293b;
+            color: white;
+        }
+
+        .control-group button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            background: #8b5cf6;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+        }
+
+        .control-group button:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+        }
+
+        .control-group button:active {
+            transform: translateY(0);
+        }
+
+        .control-group button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .control-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+        }
+
+        .status-card .label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .status-card .value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .status-detecting { color: #4ade80; }
+        .status-loading { color: #fbbf24; }
+        .hand-count { color: #4ade80; }
+        .fps-count { color: #a78bfa; }
+
+        .camera-container {
+            position: relative;
+            background: black;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            margin-bottom: 30px;
+        }
+
+        #videoElement {
+            display: none;
+        }
+
+        #canvasElement {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ef4444;
+            color: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            max-width: 80%;
+            display: none;
+        }
+
+        .error-overlay.show {
+            display: block;
+        }
+
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 25px;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .instructions h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+
+        .instructions ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .instructions li {
+            padding: 8px 0;
+            color: #d1d5db;
+        }
+
+        .footer {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span>🎵</span>
+                Đàn Tranh Ảo - Mộc Cầm
+            </h1>
+            <p>Sử dụng MediaPipe Hands để chơi đàn tranh ảo</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>
+                    📹 Chọn Camera:
+                </label>
+                <select id="cameraSelect">
+                    <option value="">Đang tải danh sách camera...</option>
+                </select>
+                <button id="switchCameraBtn" disabled>Đổi Camera</button>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="showDanTranhToggle" checked>
+                    Hiển thị Đàn Tranh
+                </label>
+                <label>
+                    <input type="checkbox" id="showHandsToggle" checked>
+                    Hiển thị Tracking Tay
+                </label>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-card">
+                <span class="label">📹 Trạng thái:</span>
+                <span id="statusText" class="value status-loading">Đang tải...</span>
+            </div>
+            <div class="status-card">
+                <span class="label">👋 Số bàn tay:</span>
+                <span id="handCount" class="value hand-count">0</span>
+            </div>
+            <div class="status-card">
+                <span class="label">⚡ FPS:</span>
+                <span id="fpsCount" class="value fps-count">0</span>
+            </div>
+        </div>
+
+        <div class="camera-container">
+            <video id="videoElement" playsinline></video>
+            <canvas id="canvasElement"></canvas>
+            
+            <div id="loadingOverlay" class="loading-overlay">
+                <div class="spinner"></div>
+                <p style="font-size: 1.2em;">Đang khởi động camera và MediaPipe...</p>
+            </div>
+            
+            <div id="errorOverlay" class="error-overlay">
+                <p style="font-weight: bold; margin-bottom: 10px;">Lỗi:</p>
+                <p id="errorMessage"></p>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Hướng dẫn sử dụng</h3>
+            <ul>
+                <li>• Chọn camera từ dropdown phía trên</li>
+                <li>• Đưa bàn tay vào trước camera, đặt tay phía trên các dây đàn</li>
+                <li>• Đàn tranh có 16 dây được hiển thị trên màn hình</li>
+                <li>• Sử dụng 3 ngón: **Cái, Trỏ, Giữa** để gảy</li>
+                <li>• Dây đàn sẽ sáng lên khi bạn gảy trúng</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>Công nghệ: MediaPipe Hands | Đàn Tranh 16 dây | Real-time Hand Tracking</p>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('canvasElement');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const errorOverlay = document.getElementById('errorOverlay');
+        const errorMessage = document.getElementById('errorMessage');
+        const statusText = document.getElementById('statusText');
+        const handCountEl = document.getElementById('handCount');
+        const fpsCountEl = document.getElementById('fpsCount');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
+
+        const showDanTranhToggle = document.getElementById('showDanTranhToggle');
+        const showHandsToggle = document.getElementById('showHandsToggle');
+        let showDanTranh = true;
+        let showHands = true;
+
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let currentFps = 0;
+        let currentStream = null;
+        let currentCamera = null;
+        let hands = null;
+        let cameraInstance = null;
+        let availableCameras = [];
+        let isSwitching = false;
+
+        // === MỚI: Canvas đệm ===
+        const staticCanvas = document.createElement('canvas');
+        const staticCtx = staticCanvas.getContext('2d');
+
+        // === MỚI: BIẾN CHO AUDIO ===
+        let audioContext;
+        let audioBuffers = []; // Mảng để lưu âm thanh đã giải mã
+        // === HẾT PHẦN MỚI ===
+
+        // === MỚI: Biến State cho logic gảy dây ===
+        let danTranhStrings = []; // Mảng lưu tọa độ {id, y, startX, endX} của 16 dây
+        let stringStates = new Array(17).fill(0); // Trạng thái "rung" của 16 dây (0 = tĩnh)
+        const FINGER_TIP_LANDMARKS = [4, 8, 12]; // Chỉ số landmark của 3 đầu ngón: Cái, Trỏ, Giữa
+        // === HẾT PHẦN MỚI ===
+
+        // === THÊM BIẾN NÀY VÀO ===
+        let previousTouching = new Array(17).fill(false); // Lưu trạng thái chạm của frame TRƯỚC
+        // === HẾT PHẦN THÊM ===
+
+        // === THÊM BIẾN NÀY VÀO ===
+        let previousHandLandmarks = []; // Lưu landmarks của frame TRƯỚC
+        // === HẾT PHẦN THÊM ===
+
+        // === THAY THẾ CONFIG CŨ BẰNG CONFIG NÀY ===
+        const DAN_TRANH_CONFIG = {
+            numStrings: 17, // Đã là 17
+            startX: 0.05, 
+            endX: 0.95,   
+            topY: 0.1,    
+            bottomY: 0.9, 
+            bridgeWidth: 40, 
+            stringColors: [
+                '#FFD700', '#FFC700', '#FFB700', '#FFA700', // Vàng (trầm) - 4
+                '#FF9700', '#FF8700', '#FF7700', '#FF6700', // Cam (trung) - 8
+                '#FF5700', '#FF4700', '#FF3700', '#FF2700', // Cam-đỏ - 12
+                '#FF1700', '#FF0700', '#F70000', '#E70000', // Đỏ (bổng) - 16
+                '#D70000'                                   // MÀU THỨ 17 (Thêm vào) 
+            ],
+            backgroundColor: '#8B4513' 
+        };
+        // === HẾT PHẦN THAY THẾ ===
+
+        // === MỚI: DANH SÁCH FILE ÂM THANH ===
+        // Bạn BẮT BUỘC phải điền đúng 17 đường dẫn file .wav của mình vào đây
+        const NOTE_FILES = [
+            'sounds/1_G.wav',  // Dây 1: G (trầm)
+            'sounds/1_A.wav',  // Dây 2: A
+            'sounds/1_C.wav',  // Dây 3: C
+            'sounds/1_D.wav',  // Dây 4: D
+            'sounds/1_E.wav',  // Dây 5: E
+            'sounds/2_G.wav',  // Dây 6: G
+            'sounds/2_A.wav',  // Dây 7: A
+            'sounds/2_C.wav',  // Dây 8: C
+            'sounds/2_D.wav',  // Dây 9: D
+            'sounds/2_E.wav',  // Dây 10: E
+            'sounds/3_G.wav',  // Dây 11: G
+            'sounds/3_A.wav',  // Dây 12: A
+            'sounds/3_C.wav',  // Dây 13: C
+            'sounds/3_D.wav',  // Dây 14: D
+            'sounds/3_E.wav',  // Dây 15: E
+            'sounds/4_G.wav',  // Dây 16: G
+            'sounds/4_A.wav'   // Dây 17: A (cao nhất)
+        ];
+        // === HẾT PHẦN MỚI ===
+
+        // === ĐÃ SỬA: Chỉ 3 ngón tay ===
+        const DAN_TRANH_HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4], // Ngón cái (Thumb)
+            [0, 5], [5, 6], [6, 7], [7, 8], // Ngón trỏ (Index)
+            [0, 9], [9, 10], [10, 11], [11, 12], // Ngón giữa (Middle)
+            [5, 9] // Nối lòng bàn tay (từ trỏ sang giữa)
+        ];
+
+        // === HÀM VẼ ĐÀN TRANH (ĐÃ SỬA) ===
+        // Hàm này giờ đọc tọa độ từ `danTranhStrings`
+        function drawDanTranh(ctx, width, height) {
+            // 1. Vẽ nền Gỗ (thay cho video)
+            if (showDanTranh) {
+                ctx.fillStyle = DAN_TRANH_CONFIG.backgroundColor;
+                ctx.fillRect(0, 0, width, height);
+            } else {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, width, height);
+                return; 
+            }
+
+            // Nếu mảng tọa độ chưa sẵn sàng thì không vẽ
+            if (danTranhStrings.length === 0) return; 
+
+            // 2. Lấy tọa độ từ mảng (thay vì tính toán lại)
+            const startX = danTranhStrings[0].startX;
+            const endX = danTranhStrings[0].endX;
+            const topY = danTranhStrings[0].y;
+            const bottomY = danTranhStrings[danTranhStrings.length - 1].y;
+            const bridgeWidth = DAN_TRANH_CONFIG.bridgeWidth;
+
+            // 3. Vẽ khung đàn (thanh dọc ở 2 bên)
+            const frameGradientLeft = ctx.createLinearGradient(startX - 20, topY, startX + 10, topY);
+            frameGradientLeft.addColorStop(0, 'rgba(101, 67, 33, 0.8)');
+            frameGradientLeft.addColorStop(1, 'rgba(139, 90, 43, 0.8)');
+            ctx.fillStyle = frameGradientLeft;
+            ctx.fillRect(startX - 20, topY - 10, 30, bottomY - topY + 20); // Khung trái
+
+            const frameGradientRight = ctx.createLinearGradient(endX - 10, topY, endX + 20, topY);
+            frameGradientRight.addColorStop(0, 'rgba(139, 90, 43, 0.8)');
+            frameGradientRight.addColorStop(1, 'rgba(101, 67, 33, 0.8)');
+            ctx.fillStyle = frameGradientRight;
+            ctx.fillRect(endX - 10, topY - 10, 30, bottomY - topY + 20); // Khung phải
+
+            // 4. Vẽ dây đàn (nằm ngang) - Lặp qua mảng tọa độ
+            danTranhStrings.forEach((string, i) => {
+                const y = string.y;
+                const stringWidth = string.endX - string.startX;
+                
+                // Vẽ con nhạn (cầu di động)
+                const bridgeX = string.startX + (stringWidth * 0.7); 
+                const bridgeGradient = ctx.createLinearGradient(bridgeX, y - 8, bridgeX, y + 8);
+                bridgeGradient.addColorStop(0, 'rgba(160, 82, 45, 0.6)');
+                bridgeGradient.addColorStop(0.5, 'rgba(205, 133, 63, 0.8)');
+                bridgeGradient.addColorStop(1, 'rgba(160, 82, 45, 0.6)');
+                
+                ctx.fillStyle = bridgeGradient;
+                ctx.beginPath();
+                ctx.moveTo(bridgeX, y); // Đỉnh
+                ctx.lineTo(bridgeX + bridgeWidth, y - 8); // Chân phải
+                ctx.lineTo(bridgeX + bridgeWidth, y + 8); // Chân trái
+                ctx.closePath();
+                ctx.fill();
+
+                // Vẽ bóng dây đàn
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(string.startX, y + 2);
+                ctx.lineTo(string.endX, y + 2);
+                ctx.stroke();
+
+                // Vẽ dây đàn chính với gradient
+                const stringGradient = ctx.createLinearGradient(string.startX, y, string.endX, y);
+                stringGradient.addColorStop(0, DAN_TRANH_CONFIG.stringColors[i]);
+                stringGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+                stringGradient.addColorStop(1, DAN_TRANH_CONFIG.stringColors[i]);
+                
+                ctx.strokeStyle = stringGradient;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(string.startX, y);
+                ctx.lineTo(string.endX, y);
+                ctx.stroke();
+
+                // Thêm viền sáng cho dây
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(string.startX, y - 1);
+                ctx.lineTo(string.endX, y - 1);
+                ctx.stroke();
+
+                // Vẽ số thứ tự dây (bên trái)
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(i + 1, string.startX - 30, y + 5);
+            });
+        }
+        // === HẾT HÀM VẼ ===
+
+        // === MỚI: HÀM TẢI ÂM THANH ===
+        async function loadAudioFiles() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioBuffers = []; // Xóa buffer cũ
+                
+                // Dùng Promise.all để tải tất cả file cùng lúc
+                const loadPromises = NOTE_FILES.map(async (filePath) => {
+                    const response = await fetch(filePath);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    return audioBuffer;
+                });
+                
+                audioBuffers = await Promise.all(loadPromises);
+                console.log('Tải xong 17 file âm thanh!');
+
+            } catch (err) {
+                console.error('Lỗi khi tải file âm thanh:', err);
+                showError('Không thể tải file âm thanh. Vui lòng kiểm tra đường dẫn và console.');
+            }
+        }
+
+        // === MỚI: HÀM PHÁT ÂM THANH ===
+        function playNote(stringIndex) {
+            if (stringIndex < 0 || stringIndex >= audioBuffers.length) return;
+
+            // Lấy âm thanh đã tải từ buffer
+            const audioBuffer = audioBuffers[stringIndex];
+            if (!audioBuffer) return;
+
+            // Tạo một nguồn phát mới (rất quan trọng)
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start(0); // Phát ngay lập-tức
+        }
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorOverlay.classList.add('show');
+            loadingOverlay.classList.add('hidden');
+            statusText.textContent = 'Lỗi';
+            statusText.className = 'value status-loading';
+        }
+
+        // === HÀM ONRESULTS (ĐÃ SỬA) ===
+        function onResults(results) {
+            // 1. Xóa canvas
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 2. Vẽ nền đàn tranh (copy từ canvas ẩn)
+            if (showDanTranh) {
+                canvasCtx.drawImage(staticCanvas, 0, 0);
+            }
+
+            // 3. Cập nhật số tay
+            const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            handCountEl.textContent = handCount;
+
+            // 4. Vẽ tay (nếu bật)
+            if (showHands && results.multiHandLandmarks) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handedness = results.multiHandedness[i];
+                    
+                    drawConnections(canvasCtx, landmarks);
+                    drawLandmarks(canvasCtx, landmarks);
+                    
+                    const wrist = landmarks[0];
+                    const x = (1 - wrist.x) * canvasElement.width;
+                    const y = wrist.y * canvasElement.height;
+                    
+                    canvasCtx.fillStyle = '#00ff00';
+                    canvasCtx.font = 'bold 24px Arial';
+                    canvasCtx.fillText(
+                        handedness.label === 'Left' ? 'Trái' : 'Phải',
+                        x - 30,
+                        y - 20
+                    );
+                }
+            }
+            
+            // 5. LOGIC GẢY DÂY (CẢI TIẾN VỚI VELOCITY VÀ CROSSING)
+            const pluckToleranceY = 15; // Độ nhạy theo trục Y (pixel)
+            const pluckVelocityThreshold = 5; // Ngưỡng vận tốc tối thiểu để coi là gảy (pixel/frame)
+            let currentlyTouching = new Array(DAN_TRANH_CONFIG.numStrings).fill(false);
+
+            // 5a. Vòng lặp kiểm tra từng ngón tay và tính vận tốc
+            if (results.multiHandLandmarks && previousHandLandmarks.length === results.multiHandLandmarks.length) {
+                for (let handIndex = 0; handIndex < results.multiHandLandmarks.length; handIndex++) {
+                    const currentLandmarks = results.multiHandLandmarks[handIndex];
+                    const prevLandmarks = previousHandLandmarks[handIndex];
+
+                    // Chỉ quét 3 đầu ngón tay
+                    for (const landmarkIndex of FINGER_TIP_LANDMARKS) {
+                        const currentTip = currentLandmarks[landmarkIndex];
+                        const prevTip = prevLandmarks[landmarkIndex];
+                        if (!currentTip || !prevTip) continue;
+
+                        // Chuyển tọa độ (nhớ lật ngang X)
+                        const currentTipX = (1 - currentTip.x) * canvasElement.width;
+                        const currentTipY = currentTip.y * canvasElement.height;
+                        const prevTipY = prevTip.y * canvasElement.height;
+
+                        // Tính vận tốc theo trục Y (pixel/frame)
+                        const velocityY = currentTipY - prevTipY;
+
+                        // So sánh với 17 dây đàn
+                        for (const string of danTranhStrings) {
+                            // Kiểm tra xem ngón tay có đang ở trên vùng dây không (theo trục X)
+                            const isOverStringX = currentTipX > string.startX && currentTipX < string.endX;
+                            
+                            // Kiểm tra xem ngón tay CÓ VƯỢT QUA dây trong frame này không
+                            const crossedString = (prevTipY < string.y && currentTipY >= string.y) || // Đi xuống qua dây
+                                                (prevTipY > string.y && currentTipY <= string.y);   // Đi lên qua dây
+
+                            // Đánh dấu chạm nếu đang ở gần dây (dùng cho logic `previousTouching` sau này)
+                            const isNearStringY = Math.abs(currentTipY - string.y) < pluckToleranceY;
+                            if (isOverStringX && isNearStringY) {
+                                currentlyTouching[string.id] = true;
+                            }
+
+                            // Điều kiện Gảy Mới:
+                            // 1. Phải đang ở trên dây (X)
+                            // 2. Phải VỪA vượt qua dây (Y) trong frame này
+                            // 3. Vận tốc Y phải đủ lớn
+                            // 4. Dây đó hiện không rung (stringStates == 0) - Tránh kích hoạt liên tục khi dây đang rung
+                            if (isOverStringX && crossedString && Math.abs(velocityY) > pluckVelocityThreshold && stringStates[string.id] === 0) {
+                                console.log(`GẢY DÂY SỐ ${string.id + 1} (Velocity: ${velocityY.toFixed(2)})`);
+                                stringStates[string.id] = 10; // Kích hoạt "rung"
+                                playNote(string.id); 
+                                
+                                // Quan trọng: Một ngón tay chỉ gảy 1 dây mỗi frame
+                                // Nếu không có break, ngón tay có thể kích hoạt 2 dây gần nhau cùng lúc
+                                break; 
+                            }
+                        } // Hết vòng lặp qua dây đàn
+                    } // Hết vòng lặp qua 3 ngón tay
+                } // Hết vòng lặp qua các bàn tay
+            }
+
+            // 5b. Vòng lặp xử lý hiệu ứng "Rung" (VISUAL FEEDBACK - không đổi)
+            for (let i = 0; i < DAN_TRANH_CONFIG.numStrings; i++) {
+                const string = danTranhStrings[i];
+                if (stringStates[i] > 0) {
+                    const intensity = stringStates[i] / 10.0;
+                    canvasCtx.strokeStyle = `rgba(255, 255, 255, ${intensity})`;
+                    canvasCtx.lineWidth = 5; 
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(string.startX, string.y);
+                    canvasCtx.lineTo(string.endX, string.y);
+                    canvasCtx.stroke();
+                    stringStates[i]--;
+                }
+            }
+            // === HẾT PHẦN THAY THẾ ===
+
+
+            // 6. Tính FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastTime >= 1000) {
+                currentFps = frameCount;
+                fpsCountEl.textContent = currentFps;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            // Lưu lại trạng thái chạm của frame này để dùng cho frame sau
+            previousTouching = [...currentlyTouching];
+
+            // Lưu lại landmarks của frame này để tính vận tốc ở frame sau
+            previousHandLandmarks = results.multiHandLandmarks ? JSON.parse(JSON.stringify(results.multiHandLandmarks)) : [];
+        }
+        // === HẾT HÀM ONRESULTS ===
+
+        // === HÀM VẼ ĐƯỜNG NỐI (ĐÃ SỬA) ===
+        function drawConnections(ctx, landmarks) {
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+
+            DAN_TRANH_HAND_CONNECTIONS.forEach(([start, end]) => {
+                const startPoint = landmarks[start];
+                const endPoint = landmarks[end];
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                    (1 - startPoint.x) * canvasElement.width,
+                    startPoint.y * canvasElement.height
+                );
+                ctx.lineTo(
+                    (1 - endPoint.x) * canvasElement.width,
+                    endPoint.y * canvasElement.height
+                );
+                ctx.stroke();
+            });
+        }
+        // === HẾT HÀM VẼ ĐƯỜNG NỐI ===
+
+        // === HÀM VẼ ĐIỂM (ĐÃ SỬA) ===
+        function drawLandmarks(ctx, landmarks) {
+            // Chỉ vẽ các điểm 0-12
+            const relevantLandmarks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+            landmarks.forEach((landmark, index) => {
+                if (!relevantLandmarks.includes(index)) {
+                    return; // Bỏ qua nếu không phải landmark liên quan
+                }
+                
+                const x = (1 - landmark.x) * canvasElement.width;
+                const y = landmark.y * canvasElement.height;
+                
+                ctx.fillStyle = index === 0 ? '#ff0000' : '#00ff00';
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+        // === HẾT HÀM VẼ ĐIỂM ===
+
+        async function getCameraList() {
+            try {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                tempStream.getTracks().forEach(track => track.stop());
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                availableCameras = devices.filter(device => device.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '';
+                
+                if (availableCameras.length === 0) {
+                    cameraSelect.innerHTML = '<option value="">Không tìm thấy camera</option>';
+                    return;
+                }
+
+                availableCameras.forEach((camera, index) => {
+                    const option = document.createElement('option');
+                    option.value = camera.deviceId;
+                    option.textContent = camera.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+
+                switchCameraBtn.disabled = false;
+            } catch (err) {
+                console.error('Error getting camera list:', err);
+                cameraSelect.innerHTML = '<option value="">Lỗi khi tải camera</option>';
+                showError('Không thể lấy danh sách camera. Vui lòng cấp quyền truy cập camera và tải lại trang.');
+            }
+        }
+
+        async function stopCurrentCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            if (cameraInstance) {
+                cameraInstance.stop();
+                cameraInstance = null;
+            }
+            videoElement.srcObject = null;
+        }
+
+        // === HÀM STARTCAMERA (ĐÃ SỬA) ===
+        async function startCamera(deviceId) {
+            if (isSwitching) {
+                console.log('Already switching camera, please wait...');
+                return;
+            }
+
+            try {
+                isSwitching = true;
+                switchCameraBtn.disabled = true;
+                switchCameraBtn.textContent = 'Đang đổi...';
+                
+                loadingOverlay.classList.remove('hidden');
+                errorOverlay.classList.remove('show');
+                
+                await stopCurrentCamera();
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const constraints = {
+                    video: {
+                        width: 1280,
+                        height: 720,
+                        deviceId: deviceId ? { exact: deviceId } : undefined
+                    }
+                };
+
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = currentStream;
+
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = resolve;
+                });
+
+                await videoElement.play();
+                
+                const width = videoElement.videoWidth;
+                const height = videoElement.videoHeight;
+
+                canvasElement.width = width;
+                canvasElement.height = height;
+
+                // === LOGIC TÍNH TOÁN TỌA ĐỘ DÂY (MỚI) ===
+                // Cập nhật kích thước canvas đệm
+                staticCanvas.width = width;
+                staticCanvas.height = height;
+
+                // Tính toán và lưu tọa độ hitbox của dây đàn
+                danTranhStrings = []; // Xóa tọa độ cũ
+                stringStates.fill(0); // Reset trạng thái "rung"
+
+                const { startX, endX, topY, bottomY, numStrings } = DAN_TRANH_CONFIG;
+                const stringSpacing = (height * bottomY - height * topY) / (numStrings - 1);
+
+                for (let i = 0; i < numStrings; i++) {
+                    const y = height * topY + i * stringSpacing;
+                    danTranhStrings.push({
+                        id: i,
+                        y: y,
+                        startX: width * startX,
+                        endX: width * endX
+                    });
+                }
+                // === HẾT LOGIC TÍNH TOÁN ===
+
+                // Vẽ cây đàn 1 lần duy nhất lên canvas đệm
+                drawDanTranh(staticCtx, width, height);
+                // === HẾT PHẦN MỚI ===
+
+                loadingOverlay.classList.add('hidden');
+                statusText.textContent = 'Đang phát hiện';
+                statusText.className = 'value status-detecting';
+
+                async function processVideoFrame() {
+                    if (videoElement.readyState >= 2) {
+                        await hands.send({ image: videoElement });
+                    }
+                    if (currentStream) {
+                        requestAnimationFrame(processVideoFrame);
+                    }
+                }
+                requestAnimationFrame(processVideoFrame);
+
+                currentCamera = deviceId;
+                cameraSelect.value = deviceId;
+                switchCameraBtn.disabled = false;
+                switchCameraBtn.textContent = 'Đổi Camera';
+                isSwitching = false;
+
+            } catch (err) {
+                isSwitching = false;
+                switchCameraBtn.disabled = false;
+                switchCameraBtn.textContent = 'Đổi Camera';
+                showError('Không thể truy cập camera: ' + err.message);
+            }
+        }
+        // === HẾT HÀM STARTCAMERA ===
+
+        async function initializeApp() {
+            try {
+                hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                hands.onResults(onResults);
+
+                // === THÊM DÒNG NÀY VÀO ===
+                await loadAudioFiles(); // Tải âm thanh trước khi làm mọi thứ
+                // === HẾT PHẦN THÊM ===
+
+                await getCameraList();
+                
+                const defaultCamera = availableCameras.length > 0 ? availableCameras[0].deviceId : null;
+                if (defaultCamera) {
+                    cameraSelect.value = defaultCamera;
+                    await startCamera(defaultCamera);
+                } else if (availableCameras.length === 0 && !errorOverlay.classList.contains('show')) {
+                    showError('Không tìm thấy camera nào trên thiết bị');
+                }
+
+            } catch (err) {
+                showError('Lỗi khởi tạo: ' + err.message);
+            }
+        }
+
+        switchCameraBtn.addEventListener('click', async () => {
+           const selectedCamera = cameraSelect.value;
+           if (selectedCamera && selectedCamera !== currentCamera && !isSwitching) {
+               await startCamera(selectedCamera);
+           }
+        });
+
+        showDanTranhToggle.addEventListener('change', (e) => {
+            showDanTranh = e.target.checked;
+            
+            // Vẽ lại canvas đệm khi bật/tắt
+            staticCtx.clearRect(0, 0, staticCanvas.width, staticCanvas.height);
+            // (Hàm startCamera sẽ tính lại danTranhStrings nếu cần)
+            // Tốt hơn là gọi lại hàm tính toán và vẽ
+            
+            // Tính toán lại tọa độ và vẽ lại (an toàn nhất)
+            const { startX, endX, topY, bottomY, numStrings } = DAN_TRANH_CONFIG;
+            const stringSpacing = (staticCanvas.height * bottomY - staticCanvas.height * topY) / (numStrings - 1);
+            
+            danTranhStrings = []; // Xóa cũ
+            for (let i = 0; i < numStrings; i++) {
+                const y = staticCanvas.height * topY + i * stringSpacing;
+                danTranhStrings.push({
+                    id: i,
+                    y: y,
+                    startX: staticCanvas.width * startX,
+                    endX: staticCanvas.width * endX
+                });
+            }
+            drawDanTranh(staticCtx, staticCanvas.width, staticCanvas.height);
+        });
+
+        showHandsToggle.addEventListener('change', (e) => {
+            showHands = e.target.checked;
+        });
+
+        window.addEventListener('load', initializeApp);
+
+        window.addEventListener('beforeunload', () => {
+            stopCurrentCamera();
+        });
+    </script>
+</body>
+</html>
